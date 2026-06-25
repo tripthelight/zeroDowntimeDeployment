@@ -80,7 +80,7 @@ jobs:
           max-attempts: 3
           retry-delay: 10s
 
-      - name: Change nginx upstream blue green
+      - name: Change nginx upstream
         uses: appleboy/ssh-action@master
         with:
           username: um
