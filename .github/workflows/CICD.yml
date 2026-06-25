@@ -35,6 +35,16 @@ jobs:
       - name: Build Docker
         working-directory: ./backend
         run: docker build --platform linux/amd64 -t ${{ secrets.DOCKERHUB_USERNAME }}/live_server:latest .
+
+      - name: Check current directory
+        run: |
+          echo "현재 위치:"
+          pwd
+          echo "현재 폴더 파일:"
+          ls -al
+          echo "/home/um 파일:"
+          ls -al /home/um
+      
       - name: Push Docker
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/live_server:latest
         
