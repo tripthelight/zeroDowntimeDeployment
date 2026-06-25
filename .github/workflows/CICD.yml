@@ -82,7 +82,7 @@ jobs:
         run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/live_server:latest
       
       - name: Run target container
-        run: docker-compose -f /home/um/docker-compose-${{ env.TARGET_UPSTREAM }}.yml up -d
+        run: docker compose -f /home/um/docker-compose-${{ env.TARGET_UPSTREAM }}.yml up -d
       
       - name: Check deploy server URL
         uses: jtalk/url-health-check-action@v3
