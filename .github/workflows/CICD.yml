@@ -35,7 +35,15 @@ jobs:
       - name: Test and package
         run: |
           chmod +x mvnw
-          ./mvnw --batch-mode clean package
+          ./mvnw --batch-mode --errors clean package
+
+      - name: Print test failure reports
+        if: failure()
+        run: |
+          echo '===== Surefire test reports ====='
+          find target/surefire-reports -maxdepth 1 -type f \
+            \( -name '*.txt' -o -name '*.dumpstream' \) \
+            -print -exec sed -n '1,240p' {} \; 2>/dev/null || true
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
@@ -80,8 +88,8 @@ jobs:
 
           READY=false
           for attempt in $(seq 1 30); do
-            if curl --silent --output /dev/null --connect-timeout 2 \
-              "http://127.0.0.1:${TARGET_PORT}/"; then
+            if curl --fail --silent --output /dev/null --connect-timeout 2 \
+              "http://127.0.0.1:${TARGET_PORT}/hc"; then
               READY=true
               break
             fi
