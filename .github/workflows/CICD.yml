@@ -64,22 +64,37 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          mkdir -p "$DEPLOY_DIR"
+          install -m 0644 "$GITHUB_WORKSPACE/deploy/docker-compose-blue.yml" \
+            "$DEPLOY_DIR/docker-compose-blue.yml"
+          install -m 0644 "$GITHUB_WORKSPACE/deploy/docker-compose-green.yml" \
+            "$DEPLOY_DIR/docker-compose-green.yml"
+
           cd "$DEPLOY_DIR"
           docker network inspect zzd-network >/dev/null 2>&1 || \
             docker network create zzd-network
+          docker inspect "$NGINX_CONTAINER" >/dev/null
+          if ! docker inspect \
+            --format '{{json .NetworkSettings.Networks}}' "$NGINX_CONTAINER" \
+            | grep -q '"zzd-network"'; then
+            docker network connect zzd-network "$NGINX_CONTAINER"
+          fi
 
           if docker ps --format '{{.Names}}' | grep -qx 'zzd-blue'; then
             CURRENT=blue
             TARGET=green
             TARGET_PORT=9091
+            TARGET_APP_PORT=8081
           elif docker ps --format '{{.Names}}' | grep -qx 'zzd-green'; then
             CURRENT=green
             TARGET=blue
             TARGET_PORT=9090
+            TARGET_APP_PORT=8080
           else
             CURRENT=none
             TARGET=blue
             TARGET_PORT=9090
+            TARGET_APP_PORT=8080
           fi
 
           export IMAGE_NAME IMAGE_TAG
@@ -105,7 +120,7 @@ jobs:
 
           cp nginx/default.conf nginx/default.conf.backup
           sed -i \
-            "s#http://zzd-\(blue\|green\):8080#http://zzd-${TARGET}:8080#" \
+            "s#http://zzd-\(blue\|green\):808[01]#http://zzd-${TARGET}:${TARGET_APP_PORT}#" \
             nginx/default.conf
 
           if ! docker exec "$NGINX_CONTAINER" nginx -t; then
@@ -118,6 +133,7 @@ jobs:
           rm -f nginx/default.conf.backup
 
           if [ "$CURRENT" != none ]; then
+            sleep 10
             docker compose -f "docker-compose-${CURRENT}.yml" down
           fi
 
