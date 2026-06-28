@@ -98,22 +98,23 @@ jobs:
           docker compose -f "docker-compose-${TARGET}.yml" pull
           docker compose -f "docker-compose-${TARGET}.yml" up -d --force-recreate
 
-          TARGET_IP=$(docker inspect \
-            --format '{{(index .NetworkSettings.Networks "zzd-network").IPAddress}}' \
-            "zzd-${TARGET}")
+          TARGET_HOST_PORT=$(docker port "zzd-${TARGET}" \
+            "${TARGET_APP_PORT}/tcp" | head -n 1 | awk -F: '{print $NF}')
 
-          if [ -z "$TARGET_IP" ]; then
-            echo "Could not find the ${TARGET} container IP on zzd-network."
+          if [ -z "$TARGET_HOST_PORT" ]; then
+            echo "Could not find the published port for ${TARGET_APP_PORT}/tcp."
             docker compose -f "docker-compose-${TARGET}.yml" down
             exit 1
           fi
+
+          echo "Health check URL: http://127.0.0.1:${TARGET_HOST_PORT}/hc"
 
           READY=false
           for attempt in $(seq 1 30); do
             echo "Health check attempt: ${attempt}/30"
             if curl --fail --silent --show-error --output /dev/null \
               --connect-timeout 2 \
-              "http://${TARGET_IP}:${TARGET_APP_PORT}/hc"; then
+              "http://127.0.0.1:${TARGET_HOST_PORT}/hc"; then
               READY=true
               break
             fi
