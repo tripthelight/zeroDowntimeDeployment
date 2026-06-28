@@ -10,7 +10,6 @@ import java.util.TreeMap;
 
 @RestController
 public class HealthCheckController {
-
     @Value("${server.env}")
     private String env;
     @Value("${server.port}")
@@ -20,7 +19,6 @@ public class HealthCheckController {
     @Value("${serverName}")
     private String serverName;
 
-
     @GetMapping("/hc")
     public ResponseEntity<?> healthCheck() {
         Map<String, String> responseData = new TreeMap<>();
@@ -28,6 +26,8 @@ public class HealthCheckController {
         responseData.put("serverAddress", serverAddress);
         responseData.put("serverName", serverName);
         responseData.put("env", env);
+
+        System.out.println("serverPort" + serverPort);
 
         return ResponseEntity.ok(responseData);
     }
