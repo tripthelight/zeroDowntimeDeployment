@@ -64,16 +64,17 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          mkdir -p "$DEPLOY_DIR"
-          install -m 0644 "$GITHUB_WORKSPACE/deploy/docker-compose-blue.yml" \
-            "$DEPLOY_DIR/docker-compose-blue.yml"
-          install -m 0644 "$GITHUB_WORKSPACE/deploy/docker-compose-green.yml" \
-            "$DEPLOY_DIR/docker-compose-green.yml"
-
           cd "$DEPLOY_DIR"
+
+          test -f docker-compose-blue.yml
+          test -f docker-compose-green.yml
+          test -f nginx/default.conf
+
           docker network inspect zzd-network >/dev/null 2>&1 || \
             docker network create zzd-network
+
           docker inspect "$NGINX_CONTAINER" >/dev/null
+
           if ! docker inspect \
             --format '{{json .NetworkSettings.Networks}}' "$NGINX_CONTAINER" \
             | grep -q '"zzd-network"'; then
@@ -97,28 +98,42 @@ jobs:
             TARGET_APP_PORT=8080
           fi
 
+          echo "Current server: ${CURRENT}"
+          echo "Target server: ${TARGET}"
+
           export IMAGE_NAME IMAGE_TAG
+
           docker compose -f "docker-compose-${TARGET}.yml" pull
-          docker compose -f "docker-compose-${TARGET}.yml" up -d --force-recreate
+          docker compose -f "docker-compose-${TARGET}.yml" \
+            up -d --force-recreate
 
           READY=false
+
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --output /dev/null --connect-timeout 2 \
+            echo "Health check attempt: ${attempt}/30"
+
+            if curl --fail \
+              --silent \
+              --output /dev/null \
+              --connect-timeout 2 \
               "http://127.0.0.1:${TARGET_PORT}/hc"; then
               READY=true
               break
             fi
+
             sleep 2
           done
 
           if [ "$READY" != true ]; then
+            echo "New ${TARGET} server did not become ready."
             docker logs "zzd-${TARGET}" || true
             docker compose -f "docker-compose-${TARGET}.yml" down
-            echo "New ${TARGET} server did not become ready. Keeping ${CURRENT} server."
+            echo "Keeping the existing ${CURRENT} server."
             exit 1
           fi
 
           cp nginx/default.conf nginx/default.conf.backup
+
           sed -i \
             "s#http://zzd-\(blue\|green\):808[01]#http://zzd-${TARGET}:${TARGET_APP_PORT}#" \
             nginx/default.conf
@@ -126,9 +141,10 @@ jobs:
           if ! docker exec "$NGINX_CONTAINER" nginx -t; then
             cp nginx/default.conf.backup nginx/default.conf
             docker compose -f "docker-compose-${TARGET}.yml" down
-            echo "Nginx configuration is invalid. Keeping ${CURRENT} server."
+            echo "Invalid Nginx configuration. Keeping ${CURRENT} server."
             exit 1
           fi
+
           docker exec "$NGINX_CONTAINER" nginx -s reload
           rm -f nginx/default.conf.backup
 
@@ -138,4 +154,5 @@ jobs:
           fi
 
           docker image prune -f
+
           echo "Deployment complete: ${CURRENT} -> ${TARGET}"
