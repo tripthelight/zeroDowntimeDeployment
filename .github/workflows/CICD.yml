@@ -129,17 +129,42 @@ jobs:
           fi
 
           cp nginx/default.conf nginx/default.conf.backup
-          sed -i \
+          sed \
             "s#http://zzd-\(blue\|green\):808[01]#http://zzd-${TARGET}:${TARGET_APP_PORT}#" \
-            nginx/default.conf
+            nginx/default.conf > nginx/default.conf.next
+          cat nginx/default.conf.next > nginx/default.conf
+          rm -f nginx/default.conf.next
 
           if ! docker exec "$NGINX_CONTAINER" nginx -t; then
-            cp nginx/default.conf.backup nginx/default.conf
+            cat nginx/default.conf.backup > nginx/default.conf
             docker compose -f "docker-compose-${TARGET}.yml" down
             echo "Nginx configuration is invalid. Keeping ${CURRENT} server."
             exit 1
           fi
           docker exec "$NGINX_CONTAINER" nginx -s reload
+
+          LOADED_NGINX_CONFIG=$(docker exec "$NGINX_CONTAINER" nginx -T 2>&1)
+          if ! grep -Fq \
+            "set \$backend http://zzd-${TARGET}:${TARGET_APP_PORT};" \
+            <<< "$LOADED_NGINX_CONFIG"; then
+            cat nginx/default.conf.backup > nginx/default.conf
+            docker exec "$NGINX_CONTAINER" nginx -t
+            docker exec "$NGINX_CONTAINER" nginx -s reload
+            docker compose -f "docker-compose-${TARGET}.yml" down
+            echo "Nginx did not load the ${TARGET} upstream. Keeping ${CURRENT} server."
+            exit 1
+          fi
+
+          if ! docker exec "$NGINX_CONTAINER" \
+            wget -q -O /dev/null http://127.0.0.1/hc; then
+            cat nginx/default.conf.backup > nginx/default.conf
+            docker exec "$NGINX_CONTAINER" nginx -t
+            docker exec "$NGINX_CONTAINER" nginx -s reload
+            docker compose -f "docker-compose-${TARGET}.yml" down
+            echo "Nginx proxy health check failed. Keeping ${CURRENT} server."
+            exit 1
+          fi
+
           rm -f nginx/default.conf.backup
 
           if [ "$CURRENT" != none ]; then
