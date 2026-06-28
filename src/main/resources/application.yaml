@@ -6,6 +6,7 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  address: 0.0.0.0
   shutdown: graceful
   env: ${APP_COLOR:local}
   serverAddress: ${SERVER_ADDRESS:127.0.0.1}
