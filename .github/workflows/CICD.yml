@@ -64,14 +64,10 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          mkdir -p "$DEPLOY_DIR/nginx"
-          install -m 0644 "$GITHUB_WORKSPACE/deploy/docker-compose-blue.yml" \
-            "$DEPLOY_DIR/docker-compose-blue.yml"
-          install -m 0644 "$GITHUB_WORKSPACE/deploy/docker-compose-green.yml" \
-            "$DEPLOY_DIR/docker-compose-green.yml"
-          install -m 0644 "$GITHUB_WORKSPACE/deploy/nginx/default.conf" \
-            "$DEPLOY_DIR/nginx/default.conf.template"
           cd "$DEPLOY_DIR"
+          test -f docker-compose-blue.yml
+          test -f docker-compose-green.yml
+          test -f nginx/default.conf
           docker network inspect zzd-network >/dev/null 2>&1 || \
             docker network create zzd-network
           docker inspect "$NGINX_CONTAINER" >/dev/null
@@ -129,8 +125,32 @@ jobs:
           if [ -f nginx/default.conf ]; then
             cp nginx/default.conf nginx/default.conf.backup
           fi
-          sed "s/__TARGET_COLOR__/${TARGET}/g" \
-            nginx/default.conf.template > nginx/default.conf.next
+          cat > nginx/default.conf.next <<'NGINX_CONFIG'
+          upstream backend_pool {
+              least_conn;
+              server zzd-__TARGET_COLOR__-1:8080 max_fails=3 fail_timeout=10s;
+              server zzd-__TARGET_COLOR__-2:8080 max_fails=3 fail_timeout=10s;
+              keepalive 32;
+          }
+
+          server {
+              listen 80;
+              server_name _;
+
+              location / {
+                  proxy_pass http://backend_pool;
+                  proxy_http_version 1.1;
+                  proxy_set_header Connection "";
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_connect_timeout 3s;
+                  proxy_read_timeout 60s;
+              }
+          }
+          NGINX_CONFIG
+          sed -i "s/__TARGET_COLOR__/${TARGET}/g" nginx/default.conf.next
           cat nginx/default.conf.next > nginx/default.conf
           rm -f nginx/default.conf.next
 
