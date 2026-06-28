@@ -31,9 +31,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build Docker
+      - name: Docker Build
         run: docker build --platform linux/amd64 -t ${{ secrets.DOCKERHUB_USERNAME }}/zdd_server .
-      - name: Push Docker
+      - name: Docker Build
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/zdd_server:latest
         
   deploy:
