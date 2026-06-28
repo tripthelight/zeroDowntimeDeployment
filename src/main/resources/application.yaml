@@ -9,7 +9,7 @@ server:
   address: 0.0.0.0
   shutdown: graceful
   env: ${APP_COLOR:local}
-  serverAddress: ${SERVER_ADDRESS:127.0.0.1}
+  serverAddress: ${DISPLAY_SERVER_ADDRESS:127.0.0.1}
 
 serverName: ${SERVER_NAME:local_server}
 
